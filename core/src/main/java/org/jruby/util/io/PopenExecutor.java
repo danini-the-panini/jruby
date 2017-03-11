@@ -130,7 +130,9 @@ public class PopenExecutor {
         }
         if (pid == -1) {
             context.setLastExitStatus(new RubyProcess.RubyStatus(runtime, runtime.getProcStatus(), 0x7f << 8, 0));
-            errno = Errno.valueOf(runtime.getPosix().errno());
+            if (errno == null || errno == Errno.__UNKNOWN_CONSTANT__) {
+                errno = Errno.valueOf(runtime.getPosix().errno());
+            }
         }
 
         execargRunOptions(context, runtime, sarg, null, errmsg);
@@ -163,6 +165,7 @@ public class PopenExecutor {
             errno = Errno.ENOENT;
             return -1;
         }
+
         status = runtime.getPosix().posix_spawnp(
                 prog,
                 eargp.fileActions,

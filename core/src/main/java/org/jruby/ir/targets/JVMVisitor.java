@@ -1743,9 +1743,7 @@ public class JVMVisitor extends IRVisitor {
     @Override
     public void PutGlobalVarInstr(PutGlobalVarInstr putglobalvarinstr) {
         visit(putglobalvarinstr.getValue());
-        jvmMethod().setGlobalVariable(putglobalvarinstr.getTarget().getName());
-        // leaves copy of value on stack
-        jvmAdapter().pop();
+        jvmMethod().setGlobalVariable(putglobalvarinstr.getTarget().getName(), file, lastLine);
     }
 
     @Override
@@ -2460,9 +2458,9 @@ public class JVMVisitor extends IRVisitor {
     @Override
     public void Rational(Rational rational) {
         jvmMethod().loadRuntime();
-        jvmAdapter().ldc(rational.getNumerator());
-        jvmAdapter().ldc(rational.getDenominator());
-        jvmAdapter().invokevirtual(p(Ruby.class), "newRational", sig(RubyRational.class, long.class, long.class));
+        visit(rational.getNumerator());
+        visit(rational.getDenominator());
+        jvmAdapter().invokestatic(p(RubyRational.class), "newRationalRaw", sig(RubyRational.class, Ruby.class, IRubyObject.class, IRubyObject.class));
     }
 
     @Override
