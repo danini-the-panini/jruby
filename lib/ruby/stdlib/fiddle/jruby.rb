@@ -90,7 +90,9 @@ module Fiddle
     def call(*args)
       pointer_args = args.zip(@args).map{ |arg,type| make_pointer(arg, type) }
       native_args = pointer_args.zip(@args).map{ |ptr,type| make_native(ptr, type) }
+      pointer_args.select{|a|a.is_a?(StringPointer)}.each(&:update_from_string)
       ret = self.__ffi_call__(*native_args)
+      pointer_args.select{|a|a.is_a?(StringPointer)}.each(&:update_string)
       make_pointer(ret, @return_type)
     end
 
@@ -153,11 +155,9 @@ module Fiddle
       if value.is_a?(IO)
         raise "Converting IO to Pointer is not supported yet"
       end
+      return NULL if value.nil?
       if value.is_a?(String)
-        cptr = Pointer.malloc(value.bytesize + 1)
-        size = value.bytesize + 1
-        cptr.ffi_ptr.put_string(0, value)
-        cptr
+        StringPointer.new(value)
 
       elsif value.is_a?(FFI::Pointer)
         Pointer.new(value)
@@ -297,8 +297,9 @@ module Fiddle
     end
 
     def ==(value)
-      return false unless value.is_a?(Pointer)
-      self.ffi_ptr.address == value.ffi_ptr.address
+      return self.ffi_ptr.address == value.ffi_ptr.address if value.is_a?(Pointer)
+      return self == value.to_ptr if value.respond_to?(:to_ptr)
+      return false
     end
     alias eql? ==
 
@@ -318,6 +319,55 @@ module Fiddle
       cptr
     end
     alias -@ ref
+  end
+
+  class StringPointer < Pointer
+    def initialize(string)
+      @string = string
+      size = string.bytesize
+      addr = Fiddle.malloc(size)
+      super(addr, size)
+      ffi_ptr.put_string(0, string)
+    end
+
+    def update_string(offset = 0, length = self.size)
+      endindex = [offset+length, self.size].min
+      (offset...endindex).each do |index|
+        @string.setbyte(index, ffi_ptr.get_int8(index,))
+      end
+    end
+
+    def update_from_string
+      ffi_ptr.put_bytes(0, @string, 0, [@string.bytesize, self.size].min)
+    end
+
+    def to_s(len = nil)
+      update_from_string
+      super
+    end
+
+    def to_str(len = size)
+      update_from_string
+      super
+    end
+
+    def [](index, length = nil)
+      update_from_string
+      super
+    end
+
+    def []=(index, length = nil, value)
+      super
+      update_string(index, length || 1)
+    end
+
+    def +(delta)
+      Pointer.new(ffi_ptr.address + delta, @size - delta)
+    end
+
+    def -(delta)
+      Pointer.new(ffi_ptr.address - delta, @size + delta)
+    end
   end
 
   NULL = Pointer.new(0, 0, 0)
